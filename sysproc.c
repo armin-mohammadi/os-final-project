@@ -89,3 +89,10 @@ sys_uptime(void)
   release(&tickslock);
   return xticks;
 }
+
+int
+sys_savestate(void)
+{
+//test for adding system call.
+  return 0;
+}
