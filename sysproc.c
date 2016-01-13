@@ -94,5 +94,12 @@ int
 sys_savestate(void)
 {
 //test for adding system call.
-  return 0;
+  int pointer = savestate();
+  return pointer;
+}
+
+int
+sys_reloadproc(void)
+{
+  return reloadproc();
 }
