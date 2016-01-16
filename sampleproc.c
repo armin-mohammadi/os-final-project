@@ -10,7 +10,6 @@ main(int argc, char *argv[])
 {
 	int pid = fork();
 	if(pid == 0){
-		// printf(1, "2: %d\n", getpid());
 		int i;
 		for (i=0; i<10; i++)
 		{
@@ -27,7 +26,6 @@ main(int argc, char *argv[])
 	} else {
 		printf(1, "parent: %d\n", getpid());
 		sleep(400);
-		// wait();
 		printf(1, "child saved\n");
 		pid = reloadproc();
 	}

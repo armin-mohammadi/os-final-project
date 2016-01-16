@@ -472,8 +472,11 @@ int
 savestate(void)
 {
   struct buf *b = bread(ROOTDEV, 900);
-
   memmove(b->data, proc, BSIZE);
+  bwrite(b);
+  brelse(b);
+  b = bread(ROOTDEV, 901);
+  memmove(b->data, proc->tf, BSIZE);
   bwrite(b);
   brelse(b);
   cprintf("process struct writed to disk\n");
@@ -506,6 +509,10 @@ reloadproc(void)
   np->sz = p->sz;
   np->parent = p->parent;
   *np->tf = *p->tf;
+  b = bread(ROOTDEV, 901);
+  // np->tf = (struct trapframe*) b->data;
+  memmove(np->tf, (struct trapframe*) b->data, sizeof(p->tf));
+  brelse(b);
   // *np->context = *p->context;
 
   // np->tf->eax = 0;
