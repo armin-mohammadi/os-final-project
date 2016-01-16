@@ -472,9 +472,13 @@ int
 savestate(void)
 {
   struct buf *b = bread(ROOTDEV, 900);
+
   memmove(b->data, proc, BSIZE);
   bwrite(b);
   brelse(b);
+  cprintf("process struct writed to disk\n");
+  page_addr(proc->pgdir, proc->sz);
+  cprintf("process pages writed to disk\n");
   exit();
   return 0;
 }
@@ -482,37 +486,39 @@ savestate(void)
 int
 reloadproc(void)
 {
+  cprintf("start loading process from disk\n");
   int pid;
   struct proc *p;
   struct buf *b = bread(ROOTDEV, 900);
   p = (struct proc*) b->data;
   brelse(b);
+  cprintf("process struct read from disk\n");
   struct proc *np;
   // Allocate process.
   if((np = allocproc()) == 0)
     return -1;
-  // Copy process state from p.
-  if((np->pgdir = copyuvm(p->pgdir, p->sz)) == 0){
-    kfree(np->kstack);
-    np->kstack = 0;
-    np->state = UNUSED;
-      return -1;
-  }
+  cprintf("allocated new process space\n");
+  if((np->pgdir = setupkvm()) == 0)
+    return 0;
+  reloaduvm(np->pgdir, p->sz);
+  cprintf("process pages loaded from disk\npgdir: %x\n", np->pgdir);
+  // np->pgdir = copyuvm(p->pgdir, p->sz);
   np->sz = p->sz;
   np->parent = p->parent;
   *np->tf = *p->tf;
+  // *np->context = *p->context;
 
-  // Clear %eax so that fork returns 0 in the child.
-  np->tf->eax = 0;
+  // np->tf->eax = 0;
   int i;
   for(i = 0; i < NOFILE; i++)
     if(p->ofile[i])
       np->ofile[i] = p->ofile[i];
   np->cwd = idup(p->cwd);
   safestrcpy(np->name, p->name, sizeof(p->name));
- 
+  
   pid = np->pid;
   // // lock to force the compiler to emit the np->state write last.
+  cprintf("set process state to RUNNABLE\n");
   acquire(&ptable.lock);
   np->state = RUNNABLE;
   release(&ptable.lock);  

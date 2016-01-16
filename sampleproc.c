@@ -18,13 +18,17 @@ main(int argc, char *argv[])
 			sleep(100);
 			if(i==3){
 				printf(1, "%d: saving\n", getpid());
+
 				savestate();
+
 				printf(1, "%d: reloaded\n", getpid());
 			}
 		}
 	} else {
 		printf(1, "parent: %d\n", getpid());
-		sleep(600);
+		sleep(400);
+		// wait();
+		printf(1, "child saved\n");
 		pid = reloadproc();
 	}
 	wait();

@@ -6,6 +6,8 @@
 #include "mmu.h"
 #include "proc.h"
 #include "elf.h"
+#include "fs.h"
+#include "buf.h"
 
 extern char data[];  // defined by kernel.ld
 pde_t *kpgdir;  // for use in scheduler()
@@ -304,6 +306,79 @@ clearpteu(pde_t *pgdir, char *uva)
   *pte &= ~PTE_U;
 }
 
+void
+page_addr(pde_t *pgdir, uint sz){
+  int i;
+  pte_t *pte;
+  // pte_t ptes[(proc->sz/PGSIZE) + 1];
+  for(i = 0; i < sz; i += PGSIZE){
+    if((pte = walkpgdir(pgdir, (void *) i, 0)) == 0)
+      panic("page_addr: pte should exist");
+    if(!(*pte & PTE_P))
+      panic("page_addr: page not present");
+    char* mem;
+    mem = kalloc();
+    memmove(mem, (char*) p2v(PTE_ADDR(*pte)), PGSIZE);
+    // pages[i/PGSIZE] = (uint) mem;  
+    // ptes[i/PGSIZE] = *pte;
+    struct buf *b;
+    int j;
+    for (j = 0; j < PGSIZE/BSIZE; j++)
+    {
+      b = bread(ROOTDEV, 901 + i/PGSIZE + j);
+      memmove(b->data, mem + (BSIZE*j), BSIZE);
+      bwrite(b);
+      brelse(b);
+    }
+    cprintf("page %d writed to disk\n", (i/PGSIZE + 1));
+  }
+  // struct buf *b;
+  // b = bread(ROOTDEV, 990);
+  // memmove(b->data, ptes, BSIZE);
+  // bwrite(b);
+  // brelse(b);
+}
+
+pde_t*
+reloaduvm(pde_t *pgdir, uint sz)
+{
+  pde_t *d;
+  // if((d = setupkvm()) == 0)
+  //   return 0;
+  d = pgdir;
+  // pte_t ptes[(sz/PGSIZE) + 1];
+  // struct buf *b;
+  // b = bread(ROOTDEV, 990);
+  // memmove(ptes, b->data, BSIZE);
+  // brelse(b);
+  uint i;
+  for(i = 0; i < sz; i += PGSIZE){
+    char* mem = kalloc();
+    struct buf *b2;
+    int j;
+    for (j = 0; j < PGSIZE/BSIZE; j++)
+    {
+      b2 = bread(ROOTDEV, 901 + i/PGSIZE + j);
+      memmove(mem + (BSIZE*j), b2->data, BSIZE);
+      brelse(b2);
+    }
+    // cprintf("%p, %p, %p\n", PTE_ADDR(v2p(mem)), PTE_ADDR(mem), v2p(mem));     PTE_FLAGS(v2p((void*) ptes[i/PGSIZE]))
+    if(mappages(d, (void*)i, PGSIZE, v2p(mem), PTE_U|PTE_W) < 0)    
+      goto bad;
+    cprintf("page %d loaded to memory\n", (i/PGSIZE + 1));
+    // pde_t* pte = 
+    // walkpgdir(d, (void *) i, 0);
+    // cprintf("%x, %x\n", mem, PTE_ADDR(pte));
+  }
+
+
+  return d;
+bad:
+  freevm(d);
+  return 0;
+}
+
+
 // Given a parent process's page table, create a copy
 // of it for a child.
 pde_t*
@@ -316,6 +391,8 @@ copyuvm(pde_t *pgdir, uint sz)
 
   if((d = setupkvm()) == 0)
     return 0;
+  // uint pages[(sz/PGSIZE) + 1];
+  // page_addr(pages, pgdir, sz);
   for(i = 0; i < sz; i += PGSIZE){
     if((pte = walkpgdir(pgdir, (void *) i, 0)) == 0)
       panic("copyuvm: pte should exist");
@@ -326,6 +403,7 @@ copyuvm(pde_t *pgdir, uint sz)
     if((mem = kalloc()) == 0)
       goto bad;
     memmove(mem, (char*)p2v(pa), PGSIZE);
+    // cprintf("%p, %p\n", PTE_ADDR(pages[i/PGSIZE]), pa);
     if(mappages(d, (void*)i, PGSIZE, v2p(mem), flags) < 0)
       goto bad;
   }
@@ -335,6 +413,7 @@ bad:
   freevm(d);
   return 0;
 }
+
 
 //PAGEBREAK!
 // Map user virtual address to kernel address.
